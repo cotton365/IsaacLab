@@ -449,6 +449,61 @@ ls -la logs/rsl_rl/unitree_go2_flat/
 
 确保使用正确的时间戳目录和检查点文件名。
 
+### Isaac Sim 启动后卡住（显示网格警告）
+
+**症状**: Isaac Sim 成功启动，显示大量网格 primvar 警告后卡住
+
+```
+[Warning] [omni.hydra] Mesh '/__Prototype_xxx/mesh_0' has corrupted data in primvar 'st':
+buffer size 6270 doesn't match expected size 25806 in faceVarying primvars
+```
+
+**原因**:
+- 地形网格生成时 UV 坐标数据不一致
+- Hydra 渲染引擎尝试验证/修复损坏的网格数据时阻塞
+- 主要发生在使用复杂地形（rough terrain）的环境中
+
+**解决方案**:
+
+1. **使用平坦地形进行测试**（最简单）:
+```bash
+# 使用 Flat 任务，避免复杂地形生成
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --checkpoint logs/rsl_rl/unitree_go2_flat/.../model_299.pt \
+    --num_envs 4
+```
+
+2. **使用无头模式**（跳过渲染验证）:
+```bash
+# 添加 --headless 避免网格渲染问题
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Rough-Unitree-Go2-v0 \
+    --checkpoint logs/rsl_rl/unitree_go2_flat/.../model_299.pt \
+    --num_envs 4 \
+    --headless
+```
+
+3. **使用更少的环境数**:
+```bash
+# 减少并行环境可以降低网格复杂度
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Rough-Unitree-Go2-v0 \
+    --checkpoint logs/rsl_rl/unitree_go2_flat/.../model_299.pt \
+    --num_envs 1  # 只用一个环境
+```
+
+4. **清除地形缓存**（如果问题持续）:
+```bash
+# 删除缓存的地形文件
+rm -rf logs/terrains/
+```
+
+**注意**:
+- 这些警告本身不会导致功能失败，但可能导致启动延迟或卡住
+- 平坦地形（Flat）环境不会触发这些警告，因为它使用简单的平面而非程序化地形
+- 无头模式训练不受影响，因为不需要渲染网格
+
 ## 常见问题 (FAQ)
 
 ### Q1: play.py 和 train.py 有什么区别？
@@ -531,6 +586,32 @@ ls -la logs/rsl_rl/unitree_go2_flat/
 | **RL-Games** | `--use_last_checkpoint` | `--checkpoint path/to/model.pt` |
 | **SB3** | `--use_last_checkpoint` | `--checkpoint path/to/model.zip` |
 | **SKRL** | 省略所有参数 | `--checkpoint path/to/model` |
+
+### Q10: 网格 primvar 警告是什么意思？可以忽略吗？
+
+**警告示例**:
+```
+[Warning] [omni.hydra] Mesh '/__Prototype_xxx/mesh_0' has corrupted data in primvar 'st'
+```
+
+**含义**:
+- `primvar 'st'` 是 USD 中存储纹理坐标（UV 映射）的数据
+- 警告表示纹理坐标数据的缓冲区大小与网格面数不匹配
+- 这通常发生在地形生成时多个网格被合并但 UV 数据不一致
+
+**是否可以忽略**:
+- ✅ **训练时**: 完全可以忽略，不影响物理模拟和训练
+- ✅ **无头模式评估**: 可以忽略，因为不需要渲染
+- ⚠️ **可视化评估**: 可能导致启动延迟或卡住，建议使用故障排除中的解决方案
+
+**不同地形类型的影响**:
+- **Flat (平坦地形)**: 不会出现警告，使用简单平面
+- **Rough (崎岖地形)**: 会出现多个警告，使用程序化地形生成
+
+**最佳实践**:
+- 训练使用无头模式，不受影响
+- 评估使用平坦地形任务（`-Flat-` 版本）避免警告
+- 如需评估崎岖地形模型，使用无头模式或减少环境数
 
 ## 相关文件 (Related Files)
 
