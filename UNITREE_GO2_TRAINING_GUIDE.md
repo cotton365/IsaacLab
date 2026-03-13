@@ -215,7 +215,44 @@ logs/rsl_rl/{task_name}/{experiment_name}/{run_name}_{timestamp}/
 
 ## 评估训练模型 (Evaluating Trained Models)
 
-### 使用最新检查点
+### 什么是 play.py？(What is play.py?)
+
+**是的！** `play.py` 脚本就是用来**调用和运行训练好的模型**进行推理的工具。
+
+**play.py 的主要功能**:
+1. ✅ **加载训练好的检查点** (模型权重)
+2. ✅ **运行推理** - 使用训练好的策略控制机器人
+3. ✅ **可视化** - 在模拟器中实时显示机器人行为
+4. ✅ **录制视频** - 可选地录制机器人运动视频
+5. ✅ **导出模型** - 自动将策略导出为 JIT 和 ONNX 格式
+
+### 使用特定检查点（推荐方式）
+
+**示例：加载您训练的模型**
+
+```bash
+# 这个命令会加载您训练好的 model_299.pt 检查点并运行推理
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --checkpoint logs/rsl_rl/unitree_go2_flat/2026-03-13_21-37-28/model_299.pt \
+    --num_envs 4
+```
+
+**这个命令做了什么？**
+- 📁 从 `logs/rsl_rl/unitree_go2_flat/2026-03-13_21-37-28/model_299.pt` 加载训练好的模型
+- 🤖 创建 4 个并行环境来运行推理
+- 🎮 使用训练好的策略控制 Unitree Go2 机器人
+- 👁️ 在 Isaac Sim 窗口中显示机器人运动（非无头模式）
+- 💾 自动导出模型到 `logs/rsl_rl/unitree_go2_flat/2026-03-13_21-37-28/exported/` 目录
+
+**注意**:
+- `model_299.pt` 表示这是第 299 次迭代保存的检查点
+- 如果训练了 300 次迭代，这是最后一个检查点
+- 使用更少的环境数（如 4）可以更容易观察单个机器人的行为
+
+### 使用最新检查点（自动查找）
+
+如果不想手动指定检查点路径，可以让脚本自动查找最新的：
 
 ```bash
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
@@ -224,14 +261,22 @@ logs/rsl_rl/{task_name}/{experiment_name}/{run_name}_{timestamp}/
     --use_last_checkpoint
 ```
 
-### 使用特定检查点
+这将自动从默认日志目录查找最新的检查点。
+
+### 录制视频
+
+记录训练好的机器人行为视频：
 
 ```bash
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
     --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
-    --num_envs 32 \
-    --checkpoint logs/rsl_rl/flat_unitree_go2/experiment_001/model_300.pt
+    --checkpoint logs/rsl_rl/unitree_go2_flat/2026-03-13_21-37-28/model_299.pt \
+    --num_envs 4 \
+    --video \
+    --video_length 500
 ```
+
+视频将保存在：`logs/rsl_rl/unitree_go2_flat/2026-03-13_21-37-28/videos/play/`
 
 ### 使用 Play 任务进行可视化（50个环境，更快渲染）
 
@@ -239,8 +284,29 @@ logs/rsl_rl/{task_name}/{experiment_name}/{run_name}_{timestamp}/
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
     --task Isaac-Velocity-Flat-Unitree-Go2-Play-v0 \
     --num_envs 50 \
-    --use_last_checkpoint
+    --checkpoint logs/rsl_rl/unitree_go2_flat/2026-03-13_21-37-28/model_299.pt
 ```
+
+**Play 任务 vs 普通任务**:
+- **Play 任务** (`-Play-v0` 后缀):
+  - 固定 50 个环境
+  - 禁用域随机化，更稳定的可视化
+  - 更小的场景，渲染更快
+- **普通任务**: 训练和评估都可以使用，可以自定义环境数量
+
+### 实时模式运行
+
+以实时速度运行（接近真实机器人的速度）：
+
+```bash
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --checkpoint logs/rsl_rl/unitree_go2_flat/2026-03-13_21-37-28/model_299.pt \
+    --num_envs 1 \
+    --real-time
+```
+
+**推荐用于**：观察单个机器人的详细行为，或准备实际部署
 
 ## 其他强化学习库 (Other RL Libraries)
 
@@ -276,6 +342,60 @@ SKRL 配置文件位置：
 - 平坦地形: `/source/isaaclab_tasks/.../config/go2/agents/skrl_flat_ppo_cfg.yaml`
 - 崎岖地形: `/source/isaaclab_tasks/.../config/go2/agents/skrl_rough_ppo_cfg.yaml`
 
+## 完整工作流程 (Complete Workflow)
+
+### 从训练到评估的完整流程
+
+```bash
+# 步骤 1: 训练模型（无头模式，更快）
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --num_envs 4096 \
+    --headless \
+    --experiment_name my_go2_experiment \
+    --run_name run_001
+
+# 训练完成后，检查点会保存在:
+# logs/rsl_rl/unitree_go2_flat/my_go2_experiment/run_001_{timestamp}/model_*.pt
+
+# 步骤 2: 评估训练好的模型（带可视化）
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --checkpoint logs/rsl_rl/unitree_go2_flat/my_go2_experiment/run_001_{timestamp}/model_299.pt \
+    --num_envs 4
+
+# 步骤 3: 录制视频
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --checkpoint logs/rsl_rl/unitree_go2_flat/my_go2_experiment/run_001_{timestamp}/model_299.pt \
+    --num_envs 4 \
+    --video \
+    --video_length 500
+```
+
+### 理解检查点文件
+
+训练过程中会定期保存检查点：
+
+```
+logs/rsl_rl/unitree_go2_flat/my_experiment/run_001_2026-03-13_21-37-28/
+├── model_0.pt       # 第 0 次迭代（初始化）
+├── model_50.pt      # 第 50 次迭代
+├── model_100.pt     # 第 100 次迭代
+├── model_150.pt     # 第 150 次迭代
+├── model_200.pt     # 第 200 次迭代
+├── model_250.pt     # 第 250 次迭代
+├── model_299.pt     # 第 299 次迭代（最后一个，如果训练了 300 次）
+└── exported/        # play.py 自动导出的模型
+    ├── policy.pt    # JIT 格式
+    └── policy.onnx  # ONNX 格式
+```
+
+**选择检查点的建议**:
+- 使用**最后一个检查点** (`model_299.pt`) 通常是最好的
+- 如果最后的检查点表现不佳，可以尝试较早的检查点（如 `model_250.pt`）
+- 平坦地形默认每 50 次迭代保存一次
+
 ## 性能优化建议 (Performance Optimization)
 
 1. **使用无头模式**: `--headless` 可以显著提高训练速度
@@ -307,6 +427,58 @@ SKRL 配置文件位置：
 ```bash
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --help
 ```
+
+### 评估时找不到检查点
+
+检查日志目录结构：
+```bash
+ls -la logs/rsl_rl/unitree_go2_flat/
+```
+
+确保使用正确的时间戳目录和检查点文件名。
+
+## 常见问题 (FAQ)
+
+### Q1: play.py 和 train.py 有什么区别？
+
+| 脚本 | 用途 | 模式 | 保存检查点 |
+|------|------|------|-----------|
+| **train.py** | 训练新模型 | 无头模式（推荐）| ✅ 是 |
+| **play.py** | 评估已训练模型 | 有可视化 | ❌ 否（但导出 JIT/ONNX）|
+
+### Q2: 为什么 play.py 使用较少的环境数？
+
+- **训练**: 使用大量环境（4096）加快数据收集
+- **评估**: 使用少量环境（4-32）更容易观察和调试单个机器人
+
+### Q3: play.py 会修改我的检查点吗？
+
+**不会**。play.py 只读取检查点，不会修改它。它会在 `exported/` 子目录中创建导出的模型。
+
+### Q4: 我可以在训练过程中使用 play.py 吗？
+
+**可以**。您可以在训练的同时，在另一个终端中使用 play.py 评估中间检查点，观察训练进度。
+
+### Q5: 导出的 policy.pt 和 policy.onnx 是什么？
+
+- **policy.pt** (JIT): 可以在 Python/PyTorch 中直接使用
+- **policy.onnx**: 可以在其他框架中使用，或部署到实际机器人
+- 这两个文件是 play.py 自动创建的，方便模型部署
+
+### Q6: 为什么我的检查点路径和文档中的不同？
+
+检查点路径取决于：
+- `--experiment_name`: 实验名称
+- `--run_name`: 运行名称
+- 时间戳: 训练开始时自动生成
+
+示例: `logs/rsl_rl/unitree_go2_flat/my_experiment/run_001_2026-03-13_21-37-28/`
+
+### Q7: 如何选择最佳检查点？
+
+1. 查看 TensorBoard 日志，找到奖励最高的迭代
+2. 通常最后的检查点 (`model_299.pt`) 是最好的
+3. 使用 play.py 测试多个检查点，选择表现最好的
 
 ## 相关文件 (Related Files)
 
