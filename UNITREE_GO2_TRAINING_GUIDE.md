@@ -255,13 +255,25 @@ logs/rsl_rl/{task_name}/{experiment_name}/{run_name}_{timestamp}/
 如果不想手动指定检查点路径，可以让脚本自动查找最新的：
 
 ```bash
+# RSL-RL 使用 --load_run 和 --load_checkpoint 参数
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --num_envs 32
+```
+
+**注意**:
+- 如果不指定 `--checkpoint`、`--load_run` 或 `--use_pretrained_checkpoint`，脚本会自动从默认日志目录查找最新的检查点
+- RSL-RL 的 play.py **不支持** `--use_last_checkpoint` 参数（该参数仅在 RL-Games 和 SB3 中可用）
+
+**使用 load_run 参数的替代方法**:
+
+```bash
+# 指定运行文件夹名称（不需要完整路径和时间戳）
 ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
     --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
     --num_envs 32 \
-    --use_last_checkpoint
+    --load_run experiment_001
 ```
-
-这将自动从默认日志目录查找最新的检查点。
 
 ### 录制视频
 
@@ -479,6 +491,46 @@ ls -la logs/rsl_rl/unitree_go2_flat/
 1. 查看 TensorBoard 日志，找到奖励最高的迭代
 2. 通常最后的检查点 (`model_299.pt`) 是最好的
 3. 使用 play.py 测试多个检查点，选择表现最好的
+
+### Q8: 为什么出现 "LexerNoViableAltException" 错误？
+
+**错误原因**: 您可能使用了 `--use_last_checkpoint` 参数，但 RSL-RL 的 play.py **不支持**此参数。
+
+**错误示例**:
+```bash
+# ❌ 会导致 LexerNoViableAltException 错误
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --use_last_checkpoint
+```
+
+**正确做法**:
+```bash
+# ✅ 方法 1: 省略检查点参数，自动查找最新的
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0
+
+# ✅ 方法 2: 使用 --load_run 参数
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --load_run experiment_001
+
+# ✅ 方法 3: 直接指定 --checkpoint 路径
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Velocity-Flat-Unitree-Go2-v0 \
+    --checkpoint logs/rsl_rl/unitree_go2_flat/.../model_299.pt
+```
+
+**注意**: `--use_last_checkpoint` 仅在 RL-Games 和 Stable-Baselines3 (SB3) 中可用。
+
+### Q9: 不同 RL 框架的 checkpoint 加载方式有何不同？
+
+| RL 框架 | 自动加载最新检查点 | 指定检查点路径 |
+|---------|-------------------|---------------|
+| **RSL-RL** | 省略所有参数 或 使用 `--load_run` | `--checkpoint path/to/model.pt` |
+| **RL-Games** | `--use_last_checkpoint` | `--checkpoint path/to/model.pt` |
+| **SB3** | `--use_last_checkpoint` | `--checkpoint path/to/model.zip` |
+| **SKRL** | 省略所有参数 | `--checkpoint path/to/model` |
 
 ## 相关文件 (Related Files)
 
